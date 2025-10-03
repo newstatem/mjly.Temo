@@ -180,6 +180,15 @@
             justify-content: center;
             align-items: center;
         }
+        /* Custom style for the student group header */
+        .student-group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #e0e0e0;
+        }
     </style>
 </head>
 <body class="p-6">
@@ -255,7 +264,8 @@
             </div>
 
             <div class="flex justify-center mt-6">
-                <button id="add-students-btn" class="w-full md:w-auto px-6 py-2 btn-primary">إضافة طالب أو أكثر</button>
+                <!-- Button now correctly calls the modal function -->
+                <button id="add-students-btn" onclick="openStudentCountModal()" class="w-full md:w-auto px-6 py-2 btn-primary">إضافة طالب أو أكثر</button>
             </div>
         </div>
 
@@ -427,7 +437,6 @@
         let studentDataCache = []; // Cache to hold current student data for exporting
 
         // DOM Elements
-        const addStudentsBtn = document.getElementById('add-students-btn');
         const dynamicFieldsContainer = document.getElementById('dynamic-fields-container');
         const dynamicForm = document.getElementById('dynamic-form');
         const studentTableBody = document.getElementById('student-table-body');
@@ -455,6 +464,25 @@
             const modal = document.getElementById(modalId);
             modal.style.display = 'none';
         }
+
+        // Function to open the count modal
+        window.openStudentCountModal = function() {
+            document.getElementById('countModal').style.display = 'flex';
+        }
+
+        // Function to remove a dynamically created student field group
+        window.removeStudentField = function(buttonElement) {
+            const group = buttonElement.closest('.student-fields-group');
+            if (group) {
+                group.remove();
+                // Optionally re-number the remaining fields if needed, but not strictly required
+            }
+            // If all fields are removed, hide the container
+            if (dynamicForm.querySelectorAll('.student-fields-group').length === 0) {
+                 dynamicFieldsContainer.classList.add('hidden');
+            }
+        }
+
 
         // --- Firebase Setup ---
 
@@ -513,13 +541,25 @@
             for (let i = 0; i < numStudents; i++) {
                 const studentFields = document.createElement('div');
                 studentFields.classList.add('grid', 'grid-cols-1', 'md:grid-cols-2', 'gap-4', 'mb-4', 'md:col-span-2', 'p-4', 'bg-gray-50', 'rounded-lg', 'student-fields-group');
+                
+                // Student group content
                 studentFields.innerHTML = `
+                    <div class="md:col-span-2 student-group-header">
+                        <span class="text-lg font-bold text-gray-800">بيانات الطالب #${i + 1}</span>
+                        <button type="button" onclick="removeStudentField(this)" 
+                                class="text-red-500 hover:text-red-700 transition-colors p-1" 
+                                title="حذف هذا الطالب">
+                            <!-- SVG Icon for Delete -->
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 6h6v10H7V6z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
                     <div>
-                        <label for="student-name-${i}" class="block text-sm font-medium text-gray-700 mb-1">اسم الطالب ${i + 1}</label>
+                        <label for="student-name-${i}" class="block text-sm font-medium text-gray-700 mb-1">اسم الطالب (مطلوب)</label>
                         <input type="text" id="student-name-${i}" class="form-input" placeholder="أدخل اسم الطالب" required>
                     </div>
                     <div>
-                        <!-- REMOVED 'required' attribute - Optional field -->
                         <label for="amount-due-${i}" class="block text-sm font-medium text-gray-700 mb-1">المبلغ المتبقي (اختياري)</label>
                         <input type="number" id="amount-due-${i}" class="form-input" placeholder="أدخل المبلغ المتبقي (افتراضي 0)" min="0" step="0.01">
                     </div>
@@ -546,42 +586,71 @@
             const examDate = document.getElementById('exam-date').value;
 
             if (!college || !level || !subject || !examDate) {
-                showMessage('بيانات ثابتة مفقودة', 'الرجاء ملء جميع الحقول الثابتة أولاً.');
+                showMessage('بيانات ثابتة مفقودة', 'الرجاء ملء جميع الحقول الثابتة أولاً (الكلية، المستوى، المادة، التاريخ).');
                 return;
             }
 
-            const studentInputs = dynamicForm.querySelectorAll('input[id^="student-name"]');
-            if (studentInputs.length === 0) {
-                 showMessage('بيانات الطالب مفقودة', 'الرجاء تحديد عدد الطلاب وإدخال بياناتهم.');
+            const studentGroups = dynamicForm.querySelectorAll('.student-fields-group');
+            if (studentGroups.length === 0) {
+                 showMessage('بيانات الطالب مفقودة', 'الرجاء تحديد عدد الطلاب وإدخال بياناتهم. لا توجد حقول طلاب حالياً.');
+                return;
+            }
+            
+            let studentsToSave = [];
+            let missingFields = [];
+
+            // 1. Validate all *existing* groups
+            studentGroups.forEach((studentGroup, index) => {
+                const studentNameInput = studentGroup.querySelector('input[id^="student-name"]');
+                const amountDueInput = studentGroup.querySelector('input[id^="amount-due"]');
+                
+                const studentName = studentNameInput ? studentNameInput.value.trim() : '';
+                
+                if (!studentName) {
+                    missingFields.push(index + 1); // Track which student is missing a name
+                    // Highlight the missing field for the user
+                    if (studentNameInput) {
+                        studentNameInput.style.borderColor = 'red';
+                        studentNameInput.focus();
+                    }
+                } else {
+                    // Prepare data for saving
+                    const amountDue = amountDueInput.value ? parseFloat(amountDueInput.value) : 0;
+                    studentsToSave.push({ studentName, amountDue });
+                }
+            });
+
+
+            if (missingFields.length > 0) {
+                showMessage('خطأ في الإدخال', `الرجاء تعبئة اسم الطالب للحقول المرقمة: ${missingFields.join(', ')}. أو قم بحذف الحقول الفارغة باستخدام زر الحذف (سلة المهملات).`);
                 return;
             }
 
             startLoading();
             let successCount = 0;
             try {
-                for (let i = 0; i < studentInputs.length; i++) {
-                    const studentName = document.getElementById(`student-name-${i}`).value.trim();
-                    const amountDueInput = document.getElementById(`amount-due-${i}`).value;
-
-                    if (studentName) { // Only require the student name
-                        
-                        // Handle optional amount due, defaulting to 0 if empty or invalid
-                        const amountDue = amountDueInput ? parseFloat(amountDueInput) : 0;
-                        
-                        await addDoc(studentsCollection(), {
-                            studentName,
-                            college,
-                            level,
-                            subject,
-                            examDate,
-                            amountDue: amountDue // Save as number (0 if empty)
-                        });
-                        successCount++;
-                    }
+                // 2. Proceed with saving the valid students (studentsToSave array)
+                for (const student of studentsToSave) {
+                    await addDoc(studentsCollection(), {
+                        studentName: student.studentName,
+                        college,
+                        level,
+                        subject,
+                        examDate,
+                        amountDue: student.amountDue
+                    });
+                    successCount++;
                 }
+
                 stopLoading();
                 showMessage('تمت الإضافة بنجاح', `تم إضافة ${successCount} طالب/طلاب إلى الكشف.`);
-                dynamicForm.reset();
+                
+                // Resetting the form
+                document.getElementById('college').value = '';
+                document.getElementById('level').value = '';
+                document.getElementById('subject').value = '';
+                document.getElementById('exam-date').value = '';
+                
                 // Clear dynamic fields after successful submission
                 dynamicForm.querySelectorAll('.student-fields-group').forEach(el => el.remove());
                 dynamicFieldsContainer.classList.add('hidden');
@@ -731,11 +800,6 @@
             });
         }
 
-        // Event listener for opening the modal
-        addStudentsBtn.addEventListener('click', function() {
-            document.getElementById('countModal').style.display = 'flex';
-        });
-
         // --- Export Functions ---
 
         // Main save function
@@ -859,3 +923,4 @@
     </script>
 </body>
 </html>
+
