@@ -379,7 +379,7 @@
                         <input type="date" id="edit-exam-date" class="form-input" required>
                     </div>
                     <div>
-                        <!-- REMOVED 'required' attribute - Optional field -->
+                        <!-- Optional field for amount due -->
                         <label for="edit-amount-due" class="block text-sm font-medium text-gray-700 mb-1">المبلغ المتبقي (اختياري)</label>
                         <input type="number" id="edit-amount-due" class="form-input" min="0" step="0.01">
                     </div>
@@ -403,7 +403,7 @@
     </div>
 
     <!-- ---------------------------------------------------------------------- -->
-    <!-- START: Standard Script Block for Global UI Handlers (Fixing the bug) -->
+    <!-- START: Standard Script Block for Global UI Handlers (Includes Export Fixes) -->
     <!-- ---------------------------------------------------------------------- -->
     <script>
         // DOM Elements
@@ -420,7 +420,7 @@
         // Function to show a custom message modal
         function showMessage(title, body) {
             messageTitle.textContent = title;
-            messageBody.textContent = body;
+            messageBody.innerHTML = body; // Use innerHTML to allow simple formatting like bolding
             messageModal.style.display = 'flex';
         }
 
@@ -490,6 +490,128 @@
             dynamicFieldsContainer.classList.remove('hidden');
             closeModal('countModal');
         }
+        
+        // Main save function (Moved here to access cache and showMessage easily)
+        window.saveAs = async function(format) {
+            // Check for required global libraries for export (which are loaded in the next script block)
+            const isXLSXLoaded = typeof window.XLSX !== 'undefined';
+            const isJSPDFLoaded = typeof window.jspdf !== 'undefined' && typeof jsPDF.autoTable !== 'undefined';
+
+            if (studentDataCache.length === 0) {
+                showMessage("لا توجد بيانات", "لا توجد بيانات في الكشف للتصدير.");
+                return;
+            }
+
+            startLoading();
+            
+            try {
+                if (format === 'xlsx') {
+                    if (!isXLSXLoaded) {
+                         throw new Error("مكتبة Excel (XLSX) غير محملة بشكل صحيح.");
+                    }
+                    
+                    const dataToExport = studentDataCache.map((student, index) => ({
+                        'ت': index + 1,
+                        'اسم الطالب': student.studentName,
+                        'الكلية': student.college,
+                        'المستوى': student.level,
+                        'المادة': student.subject,
+                        'تاريخ الاختبار': student.examDate,
+                        'المبلغ المتبقي': student.amountDue
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(dataToExport);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "كشف الطلاب");
+                    XLSX.writeFile(wb, "كشف_بيانات_الطلاب.xlsx");
+                    showMessage('تم التصدير', `تم تصدير الكشف بصيغة **Excel (.xlsx)** بنجاح.`);
+
+
+                } else if (format === 'pdf') {
+                    
+                    if (!isJSPDFLoaded || typeof jsPDF.prototype.applyArabic === 'undefined') {
+                         throw new Error("مكتبات PDF (jsPDF & Arabic Patch) غير محملة بشكل كامل.");
+                    }
+                    
+                    const { jsPDF } = window.jspdf;
+                    
+                    // LTR orientation (landscape)
+                    const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
+                    doc.setFont('helvetica', 'normal');
+                    
+                    const headers = [
+                        'المبلغ المتبقي', 
+                        'تاريخ الاختبار', 
+                        'المادة', 
+                        'المستوى', 
+                        'الكلية', 
+                        'اسم الطالب', 
+                        'ت'
+                    ];
+
+                    const body = studentDataCache.map((student, index) => {
+                        // Use amountDue.toFixed(2) only for display in PDF
+                        return [
+                            doc.applyArabic(student.amountDue.toFixed(2)), 
+                            doc.applyArabic(student.examDate), 
+                            doc.applyArabic(student.subject), 
+                            doc.applyArabic(student.level), 
+                            doc.applyArabic(student.college), 
+                            doc.applyArabic(student.studentName), 
+                            doc.applyArabic((index + 1).toString())
+                        ];
+                    });
+                    
+                    // Title and Metadata
+                    doc.setFontSize(14);
+                    doc.text(doc.applyArabic("كشف بيانات الطلاب"), 200, 15, { align: 'right' });
+                    doc.setFontSize(10);
+                    doc.text(doc.applyArabic(`تاريخ الإنشاء: ${new Date().toLocaleDateString('ar-SA')}`), 200, 22, { align: 'right' });
+
+
+                    doc.autoTable({
+                        head: [headers.map(h => doc.applyArabic(h))], // Apply Arabic to headers too
+                        body: body,
+                        startY: 30,
+                        theme: 'grid',
+                        styles: {
+                            halign: 'right', // Align content to the right
+                            cellPadding: 3,
+                            fontSize: 10,
+                            font: 'helvetica' // Must match the font set above
+                        },
+                        headStyles: {
+                            fillColor: [0, 51, 102], // Sana'a Blue RGB
+                            textColor: [255, 255, 255],
+                            fontStyle: 'bold'
+                        },
+                        columnStyles: {
+                            6: { halign: 'center', cellWidth: 10 }, // 'ت' column
+                            0: { halign: 'center', cellWidth: 20 }, // 'المبلغ المتبقي' column
+                        },
+                        didDrawPage: function(data) {
+                            // Page numbering
+                            doc.text(
+                                doc.applyArabic(`صفحة ${data.pageNumber}`), 
+                                data.settings.margin.right, 
+                                doc.internal.pageSize.height - 10, 
+                                { align: 'right' }
+                            );
+                        }
+                    });
+
+                    doc.save("كشف_بيانات_الطلاب.pdf");
+                    showMessage('تم التصدير', `تم تصدير الكشف بصيغة **PDF (.pdf)** بنجاح.`);
+                }
+
+            } catch (e) {
+                console.error("Export Error:", e);
+                let errorMessage = `حدث خطأ أثناء التصدير: **${e.message}**.<br> يُرجى التأكد من أن جميع المكتبات تم تحميلها بشكل كامل. إذا تكرر الخطأ، **الرجاء الضغط على زر "Preview" مرة أخرى** لإعادة تحميل المكتبات.`;
+                showMessage('خطأ في التصدير', errorMessage);
+            } finally {
+                stopLoading();
+            }
+        }
     </script>
     <!-- ---------------------------------------------------------------------- -->
     <!-- END: Standard Script Block for Global UI Handlers -->
@@ -501,6 +623,7 @@
     <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
     
     <!-- Exporting Libraries (Crucial loading order for PDF) -->
+    <!-- Libraries are loaded globally for use in saveAs function in standard script block -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -530,13 +653,13 @@
         let userId = null;
         let isAuthReady = false;
         let currentEditingDocId = null; // Store the ID of the document currently being edited
-        let studentDataCache = []; // Cache to hold current student data for exporting
+        
+        // This MUST be globally available for the export function in the standard script block
+        window.studentDataCache = []; // Cache to hold current student data for exporting
 
         // DOM Elements
         const studentTableBody = document.getElementById('student-table-body');
-        
-        // NOTE: showMessage, startLoading, stopLoading, closeModal, openStudentCountModal
-        // are now defined in the standard script block above.
+        const dynamicForm = document.getElementById('dynamic-form');
 
         // --- Firebase Setup ---
 
@@ -581,9 +704,9 @@
 
         // --- Data Logic Functions (Called globally from HTML elements) ---
         
-        // Adds students to Firestore (Batch Add)
+        // Fix for "إضافة إلى الكشف" - Ensures data collection is robust and prevent form clear on error
         window.addStudents = async function(e) {
-            e.preventDefault();
+            e.preventDefault(); // <-- CRITICAL: Prevents page reload and clearing fields
             
             if (!isAuthReady) {
                 showMessage('جاري التحميل', 'الرجاء الانتظار حتى يتم تحميل ملفات المستخدم.');
@@ -609,19 +732,21 @@
             let studentsToSave = [];
             let missingFields = [];
 
-            // 1. Validate all *existing* groups
+            // 1. Validate and collect data from all dynamic groups
             studentGroups.forEach((studentGroup, index) => {
+                // Query using the input's name attribute or specific id prefix for robustness
                 const studentNameInput = studentGroup.querySelector('input[id^="student-name"]');
                 const amountDueInput = studentGroup.querySelector('input[id^="amount-due"]');
                 
                 const studentName = studentNameInput ? studentNameInput.value.trim() : '';
                 
+                // Reset border color
+                if(studentNameInput) studentNameInput.style.borderColor = '#d1d5da'; 
+                
                 if (!studentName) {
-                    missingFields.push(index + 1); // Track which student is missing a name
-                    // Highlight the missing field for the user
+                    missingFields.push(index + 1);
                     if (studentNameInput) {
-                        studentNameInput.style.borderColor = 'red';
-                        studentNameInput.focus();
+                        studentNameInput.style.borderColor = 'red'; // Highlight
                     }
                 } else {
                     // Prepare data for saving
@@ -632,30 +757,37 @@
 
 
             if (missingFields.length > 0) {
-                showMessage('خطأ في الإدخال', `الرجاء تعبئة اسم الطالب للحقول المرقمة: ${missingFields.join(', ')}. أو قم بحذف الحقول الفارغة باستخدام زر الحذف (سلة المهملات).`);
+                showMessage('خطأ في الإدخال', `الرجاء تعبئة اسم الطالب للحقول المرقمة: **${missingFields.join(', ')}**. أو قم بحذف الحقول الفارغة باستخدام زر الحذف (سلة المهملات).`);
+                return;
+            }
+            
+            if (studentsToSave.length === 0) {
+                showMessage('خطأ', 'لم يتم العثور على أي طلاب بأسماء صالحة للحفظ.');
                 return;
             }
 
             startLoading();
-            let successCount = 0;
+            let savePromises = [];
             try {
                 // 2. Proceed with saving the valid students (studentsToSave array)
                 for (const student of studentsToSave) {
-                    await addDoc(studentsCollection(), {
+                    savePromises.push(addDoc(studentsCollection(), {
                         studentName: student.studentName,
                         college,
                         level,
                         subject,
                         examDate,
                         amountDue: student.amountDue
-                    });
-                    successCount++;
+                    }));
                 }
+                
+                // Wait for all promises to resolve
+                await Promise.all(savePromises);
 
                 stopLoading();
-                showMessage('تمت الإضافة بنجاح', `تم إضافة ${successCount} طالب/طلاب إلى الكشف.`);
+                showMessage('تمت الإضافة بنجاح', `تم إضافة **${savePromises.length}** طالب/طلاب إلى الكشف.`);
                 
-                // Resetting the form
+                // Resetting the STATIC form inputs after successful submission
                 document.getElementById('college').value = '';
                 document.getElementById('level').value = '';
                 document.getElementById('subject').value = '';
@@ -667,7 +799,8 @@
 
             } catch (e) {
                 stopLoading();
-                showMessage('خطأ في الحفظ', `حدث خطأ أثناء إضافة البيانات: ${e.message}`);
+                // ONLY show error message; DO NOT clear fields if save fails
+                showMessage('خطأ في الحفظ', `حدث خطأ أثناء إضافة البيانات: **${e.message}**.`);
             }
         }
 
@@ -720,6 +853,7 @@
                 const amountDueInput = document.getElementById('edit-amount-due').value;
                 
                 // Handle optional amount due here too
+                // Ensure it's a number, defaulting to 0
                 const finalAmountDue = amountDueInput ? parseFloat(amountDueInput) : 0;
                 
                 const updatedData = {
@@ -769,7 +903,7 @@
 
             onSnapshot(studentsCollection(), (querySnapshot) => {
                 studentTableBody.innerHTML = ''; // Clear table
-                studentDataCache = []; // Reset cache
+                window.studentDataCache = []; // Reset cache (Use window scope for export function access)
 
                 if (querySnapshot.empty) {
                      studentTableBody.innerHTML = `
@@ -783,7 +917,7 @@
                     const docId = doc.id;
                     
                     // Add to cache
-                    studentDataCache.push(student);
+                    window.studentDataCache.push(student);
 
                     const newRow = document.createElement('tr');
                     newRow.classList.add('table-row');
@@ -808,127 +942,6 @@
                     <tr><td colspan="7" class="text-center py-4 text-red-500">حدث خطأ في جلب البيانات: ${error.message}</td></tr>
                 `;
             });
-        }
-
-        // --- Export Functions ---
-
-        // Main save function
-        window.saveAs = async function(format) {
-            if (studentDataCache.length === 0) {
-                showMessage("لا توجد بيانات", "لا توجد بيانات في الكشف للتصدير.");
-                return;
-            }
-
-            startLoading();
-            
-            try {
-                if (format === 'xlsx') {
-                    if (typeof XLSX === 'undefined') throw new Error("مكتبة XLSX غير محملة.");
-                    
-                    const dataToExport = studentDataCache.map((student, index) => ({
-                        'ت': index + 1,
-                        'اسم الطالب': student.studentName,
-                        'الكلية': student.college,
-                        'المستوى': student.level,
-                        'المادة': student.subject,
-                        'تاريخ الاختبار': student.examDate,
-                        'المبلغ المتبقي': student.amountDue.toFixed(2)
-                    }));
-
-                    const ws = XLSX.utils.json_to_sheet(dataToExport);
-                    const wb = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(wb, ws, "كشف الطلاب");
-                    XLSX.writeFile(wb, "كشف_بيانات_الطلاب.xlsx");
-
-                } else if (format === 'pdf') {
-                    // Check if required libraries are loaded
-                    if (typeof window.jspdf === 'undefined' || typeof jsPDF.autoTable === 'undefined' || typeof jsPDF.prototype.applyArabic === 'undefined') {
-                         throw new Error("مكتبات PDF غير محملة بشكل كامل أو صحيح. قد تحتاج إلى تحديث المتصفح.");
-                    }
-                    
-                    const { jsPDF } = window.jspdf;
-                    
-                    // LTR orientation (landscape)
-                    const doc = new jsPDF({
-                        orientation: 'l',
-                        unit: 'mm',
-                        format: 'a4'
-                    });
-
-                    // Set font to a PDF standard font (like Helvetica) which is then used by applyArabic
-                    doc.setFont('helvetica', 'normal');
-                    
-                    const headers = [
-                        'المبلغ المتبقي', 
-                        'تاريخ الاختبار', 
-                        'المادة', 
-                        'المستوى', 
-                        'الكلية', 
-                        'اسم الطالب', 
-                        'ت'
-                    ];
-
-                    const body = studentDataCache.map((student, index) => {
-                        // Apply Arabic transformation to all string values before placing in the PDF body
-                        return [
-                            doc.applyArabic(student.amountDue.toFixed(2)), 
-                            doc.applyArabic(student.examDate), 
-                            doc.applyArabic(student.subject), 
-                            doc.applyArabic(student.level), 
-                            doc.applyArabic(student.college), 
-                            doc.applyArabic(student.studentName), 
-                            doc.applyArabic((index + 1).toString())
-                        ];
-                    });
-                    
-                    // Title and Metadata
-                    doc.setFontSize(14);
-                    doc.text(doc.applyArabic("كشف بيانات الطلاب"), 200, 15, { align: 'right' });
-                    doc.setFontSize(10);
-                    doc.text(doc.applyArabic(`تاريخ الإنشاء: ${new Date().toLocaleDateString('ar-SA')}`), 200, 22, { align: 'right' });
-
-
-                    doc.autoTable({
-                        head: [headers.map(h => doc.applyArabic(h))], // Apply Arabic to headers too
-                        body: body,
-                        startY: 30,
-                        theme: 'grid',
-                        styles: {
-                            halign: 'right', // Align content to the right
-                            cellPadding: 3,
-                            fontSize: 10,
-                            font: 'helvetica' // Must match the font set above
-                        },
-                        headStyles: {
-                            fillColor: [0, 51, 102], // Sana'a Blue RGB
-                            textColor: [255, 255, 255],
-                            fontStyle: 'bold'
-                        },
-                        columnStyles: {
-                            6: { halign: 'center', cellWidth: 10 }, // 'ت' column
-                            0: { halign: 'center', cellWidth: 20 }, // 'المبلغ المتبقي' column
-                        },
-                        didDrawPage: function(data) {
-                            // Page numbering
-                            doc.text(
-                                doc.applyArabic(`صفحة ${data.pageNumber}`), 
-                                data.settings.margin.right, 
-                                doc.internal.pageSize.height - 10, 
-                                { align: 'right' }
-                            );
-                        }
-                    });
-
-                    doc.save("كشف_بيانات_الطلاب.pdf");
-                }
-                showMessage('تم التصدير', `تم تصدير الكشف بصيغة ${format.toUpperCase()} بنجاح. ملاحظة: ملف PDF نصي وقابل للطباعة.`);
-
-            } catch (e) {
-                console.error("Export Error:", e);
-                showMessage('خطأ في التصدير', `حدث خطأ أثناء التصدير: ${e.message}. إذا تكرر الخطأ، **الرجاء الضغط على زر "Preview" مرة أخرى** لإعادة تحميل المكتبات بشكل كامل.`);
-            } finally {
-                stopLoading();
-            }
         }
     </script>
     <!-- ---------------------------------------------------------------------- -->
