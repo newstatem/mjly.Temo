@@ -402,52 +402,17 @@
         </div>
     </div>
 
-    <!-- Required libraries -->
-    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
-    
-    <!-- Exporting Libraries (Crucial loading order for PDF) -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-    <!-- ar-Bidi library MUST be loaded AFTER jsPDF and autoTable to patch correctly -->
-    <script src="https://unpkg.com/jspdf-arabic@1.0.0/dist/jspdf-arabic.umd.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, setLogLevel, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Global variables for Firebase setup
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        setLogLevel('debug');
-
-        let userId = null;
-        let isAuthReady = false;
-        let currentEditingDocId = null; // Store the ID of the document currently being edited
-        let studentDataCache = []; // Cache to hold current student data for exporting
-
+    <!-- ---------------------------------------------------------------------- -->
+    <!-- START: Standard Script Block for Global UI Handlers (Fixing the bug) -->
+    <!-- ---------------------------------------------------------------------- -->
+    <script>
         // DOM Elements
-        const dynamicFieldsContainer = document.getElementById('dynamic-fields-container');
-        const dynamicForm = document.getElementById('dynamic-form');
-        const studentTableBody = document.getElementById('student-table-body');
         const messageModal = document.getElementById('messageModal');
         const messageTitle = document.getElementById('messageTitle');
         const messageBody = document.getElementById('messageBody');
         const loadingOverlay = document.getElementById('loading-overlay');
-        const exportButtonsContainer = document.getElementById('export-buttons-container');
-        const actionColumnHeader = document.querySelector('.action-col');
-        
-        // --- Utility Functions ---
+        const dynamicFieldsContainer = document.getElementById('dynamic-fields-container');
+        const dynamicForm = document.getElementById('dynamic-form');
 
         function startLoading() { loadingOverlay.style.display = 'flex'; }
         function stopLoading() { loadingOverlay.style.display = 'none'; }
@@ -459,75 +424,30 @@
             messageModal.style.display = 'flex';
         }
 
-        // Function to close any modal
+        // Function to close any modal (Global function for 'onclick' in HTML)
         window.closeModal = function(modalId) {
             const modal = document.getElementById(modalId);
             modal.style.display = 'none';
         }
 
-        // Function to open the count modal
+        // Function to open the count modal (Global function for 'onclick' in HTML)
         window.openStudentCountModal = function() {
             document.getElementById('countModal').style.display = 'flex';
         }
-
-        // Function to remove a dynamically created student field group
+        
+        // Function to remove a dynamically created student field group (Global function for 'onclick' in HTML)
         window.removeStudentField = function(buttonElement) {
             const group = buttonElement.closest('.student-fields-group');
             if (group) {
                 group.remove();
-                // Optionally re-number the remaining fields if needed, but not strictly required
             }
             // If all fields are removed, hide the container
             if (dynamicForm.querySelectorAll('.student-fields-group').length === 0) {
                  dynamicFieldsContainer.classList.add('hidden');
             }
         }
-
-
-        // --- Firebase Setup ---
-
-        // Firestore collection reference (using userId)
-        const studentsCollection = () => {
-             if (!userId) {
-                console.error("Firestore Error: userId is not defined.");
-                throw new Error("User not authenticated or ID not ready.");
-            }
-            // Private collection path
-            return collection(db, `artifacts/${appId}/users/${userId}/students`);
-        };
-
-        // Attempt sign-in first with custom token, then anonymously
-        async function authenticate() {
-            try {
-                await setPersistence(auth, browserSessionPersistence);
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Authentication failed:", error);
-                showMessage("فشل المصادقة", `حدث خطأ أثناء تسجيل الدخول: ${error.message}`);
-            }
-        }
         
-        // Listen for authentication state changes
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                userId = user.uid;
-                document.getElementById('userIdDisplay').textContent = userId;
-                isAuthReady = true;
-                // Start listening to data once authenticated
-                listenForStudents();
-            } else {
-                // If no user is logged in, attempt to authenticate
-                authenticate();
-            }
-        });
-
-        // --- UI & Logic Functions for Adding/Editing/Deleting ---
-
-        // Creates dynamic input fields for students
+        // This function MUST be defined globally for the 'onclick' in the modal
         window.createStudentFields = function() {
             const numStudents = document.getElementById('numStudentsInput').value;
             if (!numStudents || isNaN(numStudents) || numStudents <= 0) {
@@ -570,7 +490,97 @@
             dynamicFieldsContainer.classList.remove('hidden');
             closeModal('countModal');
         }
+    </script>
+    <!-- ---------------------------------------------------------------------- -->
+    <!-- END: Standard Script Block for Global UI Handlers -->
+    <!-- ---------------------------------------------------------------------- -->
 
+    <!-- Required libraries -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
+    
+    <!-- Exporting Libraries (Crucial loading order for PDF) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <!-- ar-Bidi library MUST be loaded AFTER jsPDF and autoTable to patch correctly -->
+    <script src="https://unpkg.com/jspdf-arabic@1.0.0/dist/jspdf-arabic.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <!-- ---------------------------------------------------------------------- -->
+    <!-- START: Module Script Block for Firestore & Data Logic -->
+    <!-- ---------------------------------------------------------------------- -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, setLogLevel, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables for Firebase setup
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        setLogLevel('debug');
+
+        let userId = null;
+        let isAuthReady = false;
+        let currentEditingDocId = null; // Store the ID of the document currently being edited
+        let studentDataCache = []; // Cache to hold current student data for exporting
+
+        // DOM Elements
+        const studentTableBody = document.getElementById('student-table-body');
+        
+        // NOTE: showMessage, startLoading, stopLoading, closeModal, openStudentCountModal
+        // are now defined in the standard script block above.
+
+        // --- Firebase Setup ---
+
+        // Firestore collection reference (using userId)
+        const studentsCollection = () => {
+             if (!userId) {
+                console.error("Firestore Error: userId is not defined.");
+                throw new Error("User not authenticated or ID not ready.");
+            }
+            // Private collection path
+            return collection(db, `artifacts/${appId}/users/${userId}/students`);
+        };
+
+        // Attempt sign-in first with custom token, then anonymously
+        async function authenticate() {
+            try {
+                await setPersistence(auth, browserSessionPersistence);
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Authentication failed:", error);
+                showMessage("فشل المصادقة", `حدث خطأ أثناء تسجيل الدخول: ${error.message}`);
+            }
+        }
+        
+        // Listen for authentication state changes
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userId = user.uid;
+                document.getElementById('userIdDisplay').textContent = userId;
+                isAuthReady = true;
+                // Start listening to data once authenticated
+                listenForStudents();
+            } else {
+                // If no user is logged in, attempt to authenticate
+                authenticate();
+            }
+        });
+
+        // --- Data Logic Functions (Called globally from HTML elements) ---
+        
         // Adds students to Firestore (Batch Add)
         window.addStudents = async function(e) {
             e.preventDefault();
@@ -921,6 +931,10 @@
             }
         }
     </script>
+    <!-- ---------------------------------------------------------------------- -->
+    <!-- END: Module Script Block for Firestore & Data Logic -->
+    <!-- ---------------------------------------------------------------------- -->
+
 </body>
 </html>
 
