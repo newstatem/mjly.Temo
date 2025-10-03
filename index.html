@@ -29,7 +29,7 @@
             background-color: #f3f4f6;
         }
         .container {
-            max-width: 900px;
+            max-width: 1000px; /* Increased max width for more columns */
         }
         .card {
             background-color: #fff;
@@ -189,9 +189,14 @@
             padding-bottom: 0.5rem;
             border-bottom: 1px solid #e0e0e0;
         }
+        /* Mobile adjustment for table padding */
+        .px-mobile-sm {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
     </style>
 </head>
-<body class="p-6">
+<body class="p-4 sm:p-6">
     <div id="loading-overlay">
         <div class="flex flex-col items-center">
             <!-- Spinner using Sana'a Blue -->
@@ -204,18 +209,18 @@
         <!-- User ID Display (Light background with Blue Text) -->
         <div class="card mb-4 bg-sanaa-light border border-sanaa-blue/10">
             <p class="text-sm text-gray-600 text-center">
-                معرف المستخدم: <span id="userIdDisplay" class="font-bold text-sanaa-blue break-words">...</span>
+                معرف المستخدم (للتخزين): <span id="userIdDisplay" class="font-bold text-sanaa-blue break-words">...</span>
             </p>
         </div>
 
-        <!-- Student Data Form -->
+        <!-- Student Data Form (Static Fields) -->
         <div class="card mb-8">
             <h1 class="text-3xl font-bold text-center text-sanaa-blue mb-6">نموذج إدخال بيانات الطلاب</h1>
             <p class="text-center text-gray-600 mb-8">
-                أدخل البيانات الثابتة لجميع الطلاب أولاً، ثم أضف بيانات الطلاب بشكل منفرد.
+                أدخل البيانات الثابتة لجميع الطلاب أولاً، ثم أضف بيانات الطلاب بشكل منفرد (الاسم، التخصص، المبلغ المتبقي).
             </p>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 <!-- Static Fields -->
                 <div>
                     <label for="college" class="block text-sm font-medium text-gray-700 mb-1">الكلية</label>
@@ -253,6 +258,7 @@
                         <option value="المستوى السادس">المستوى السادس</option>
                     </select>
                 </div>
+                <!-- REMOVED: Specialization static field -->
                 <div>
                     <label for="subject" class="block text-sm font-medium text-gray-700 mb-1">اسم المادة</label>
                     <input type="text" id="subject" class="form-input" placeholder="أدخل اسم المادة" required>
@@ -264,7 +270,6 @@
             </div>
 
             <div class="flex justify-center mt-6">
-                <!-- Button now correctly calls the modal function -->
                 <button id="add-students-btn" onclick="openStudentCountModal()" class="w-full md:w-auto px-6 py-2 btn-primary">إضافة طالب أو أكثر</button>
             </div>
         </div>
@@ -287,18 +292,19 @@
                 <thead class="table-header">
                     <tr>
                         <th class="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider">اسم الطالب</th>
+                        <th class="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider">التخصص</th> <!-- NEW COLUMN HEADER -->
+                        <th class="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider">المبلغ المتبقي</th>
                         <th class="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider">الكلية</th>
                         <th class="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider">المستوى</th>
                         <th class="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider">المادة</th>
                         <th class="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider">تاريخ الاختبار</th>
-                        <th class="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider">المبلغ المتبقي</th>
                         <th class="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider action-col">إجراء</th>
                     </tr>
                 </thead>
                 <tbody id="student-table-body" class="bg-white divide-y divide-gray-200">
                     <!-- Data is loaded here from Firestore -->
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-gray-500">جاري تحميل بيانات الطلاب...</td>
+                        <td colspan="8" class="text-center py-4 text-gray-500">جاري تحميل بيانات الطلاب...</td>
                     </tr>
                 </tbody>
             </table>
@@ -370,6 +376,11 @@
                             <option value="المستوى السادس">المستوى السادس</option>
                         </select>
                     </div>
+                    <!-- EDIT FIELD: Specialization (Now dynamic) -->
+                    <div>
+                        <label for="edit-specialization" class="block text-sm font-medium text-gray-700 mb-1">التخصص</label>
+                        <input type="text" id="edit-specialization" class="form-input" required>
+                    </div>
                     <div>
                         <label for="edit-subject" class="block text-sm font-medium text-gray-700 mb-1">اسم المادة</label>
                         <input type="text" id="edit-subject" class="form-input" required>
@@ -432,6 +443,16 @@
 
         // Function to open the count modal (Global function for 'onclick' in HTML)
         window.openStudentCountModal = function() {
+            // Check if static fields are filled first
+            const college = document.getElementById('college').value;
+            const level = document.getElementById('level').value;
+            const subject = document.getElementById('subject').value;
+            const examDate = document.getElementById('exam-date').value;
+
+            if (!college || !level || !subject || !examDate) {
+                showMessage('بيانات ثابتة مفقودة', 'الرجاء ملء جميع الحقول الثابتة أولاً (الكلية، المستوى، المادة، التاريخ).');
+                return;
+            }
             document.getElementById('countModal').style.display = 'flex';
         }
         
@@ -460,11 +481,12 @@
 
             for (let i = 0; i < numStudents; i++) {
                 const studentFields = document.createElement('div');
-                studentFields.classList.add('grid', 'grid-cols-1', 'md:grid-cols-2', 'gap-4', 'mb-4', 'md:col-span-2', 'p-4', 'bg-gray-50', 'rounded-lg', 'student-fields-group');
+                // Changed to 3 columns grid on medium screens for the 3 dynamic fields
+                studentFields.classList.add('grid', 'grid-cols-1', 'md:grid-cols-3', 'gap-4', 'mb-4', 'md:col-span-2', 'p-4', 'bg-gray-50', 'rounded-lg', 'student-fields-group');
                 
                 // Student group content
                 studentFields.innerHTML = `
-                    <div class="md:col-span-2 student-group-header">
+                    <div class="md:col-span-3 student-group-header">
                         <span class="text-lg font-bold text-gray-800">بيانات الطالب #${i + 1}</span>
                         <button type="button" onclick="removeStudentField(this)" 
                                 class="text-red-500 hover:text-red-700 transition-colors p-1" 
@@ -478,6 +500,10 @@
                     <div>
                         <label for="student-name-${i}" class="block text-sm font-medium text-gray-700 mb-1">اسم الطالب (مطلوب)</label>
                         <input type="text" id="student-name-${i}" class="form-input" placeholder="أدخل اسم الطالب" required>
+                    </div>
+                    <div>
+                        <label for="specialization-${i}" class="block text-sm font-medium text-gray-700 mb-1">التخصص (مطلوب)</label>
+                        <input type="text" id="specialization-${i}" class="form-input" placeholder="أدخل التخصص (مثل: شبكات)" required>
                     </div>
                     <div>
                         <label for="amount-due-${i}" class="block text-sm font-medium text-gray-700 mb-1">المبلغ المتبقي (اختياري)</label>
@@ -513,11 +539,12 @@
                     const dataToExport = studentDataCache.map((student, index) => ({
                         'ت': index + 1,
                         'اسم الطالب': student.studentName,
+                        'التخصص': student.specialization, // Dynamic Field
+                        'المبلغ المتبقي': student.amountDue, // Dynamic Field
                         'الكلية': student.college,
                         'المستوى': student.level,
                         'المادة': student.subject,
-                        'تاريخ الاختبار': student.examDate,
-                        'المبلغ المتبقي': student.amountDue
+                        'تاريخ الاختبار': student.examDate
                     }));
 
                     const ws = XLSX.utils.json_to_sheet(dataToExport);
@@ -539,12 +566,14 @@
                     const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
                     doc.setFont('helvetica', 'normal');
                     
+                    // Added 'التخصص' to the headers
                     const headers = [
                         'المبلغ المتبقي', 
                         'تاريخ الاختبار', 
                         'المادة', 
                         'المستوى', 
                         'الكلية', 
+                        'التخصص', // Dynamic Field
                         'اسم الطالب', 
                         'ت'
                     ];
@@ -557,6 +586,7 @@
                             doc.applyArabic(student.subject), 
                             doc.applyArabic(student.level), 
                             doc.applyArabic(student.college), 
+                            doc.applyArabic(student.specialization), // Dynamic Field
                             doc.applyArabic(student.studentName), 
                             doc.applyArabic((index + 1).toString())
                         ];
@@ -577,7 +607,7 @@
                         styles: {
                             halign: 'right', // Align content to the right
                             cellPadding: 3,
-                            fontSize: 10,
+                            fontSize: 8, // Smaller font to fit more columns
                             font: 'helvetica' // Must match the font set above
                         },
                         headStyles: {
@@ -586,8 +616,8 @@
                             fontStyle: 'bold'
                         },
                         columnStyles: {
-                            6: { halign: 'center', cellWidth: 10 }, // 'ت' column
-                            0: { halign: 'center', cellWidth: 20 }, // 'المبلغ المتبقي' column
+                            7: { halign: 'center', cellWidth: 8 }, // 'ت' column
+                            0: { halign: 'center', cellWidth: 15 }, // 'المبلغ المتبقي' column
                         },
                         didDrawPage: function(data) {
                             // Page numbering
@@ -623,7 +653,6 @@
     <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
     
     <!-- Exporting Libraries (Crucial loading order for PDF) -->
-    <!-- Libraries are loaded globally for use in saveAs function in standard script block -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -641,6 +670,7 @@
 
         // Global variables for Firebase setup
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // When hosted on GitHub, __firebase_config will be undefined, but we define a default object to prevent errors.
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
@@ -676,11 +706,16 @@
         // Attempt sign-in first with custom token, then anonymously
         async function authenticate() {
             try {
+                // Ensure persistence is set for consistency
                 await setPersistence(auth, browserSessionPersistence);
+                
+                // If token exists (in Canvas environment), use it.
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else {
-                    await signInAnonymously(auth);
+                    // This is the CRITICAL FALLBACK for GitHub Pages/Public Hosting
+                    // It creates an anonymous, persistent user.
+                    await signInAnonymously(auth); 
                 }
             } catch (error) {
                 console.error("Authentication failed:", error);
@@ -697,7 +732,7 @@
                 // Start listening to data once authenticated
                 listenForStudents();
             } else {
-                // If no user is logged in, attempt to authenticate
+                // If no user is logged in (initial state or sign-out), attempt to authenticate
                 authenticate();
             }
         });
@@ -718,6 +753,7 @@
             const subject = document.getElementById('subject').value;
             const examDate = document.getElementById('exam-date').value;
 
+            // Static field check is repeated here just in case modal logic was bypassed
             if (!college || !level || !subject || !examDate) {
                 showMessage('بيانات ثابتة مفقودة', 'الرجاء ملء جميع الحقول الثابتة أولاً (الكلية، المستوى، المادة، التاريخ).');
                 return;
@@ -734,35 +770,36 @@
 
             // 1. Validate and collect data from all dynamic groups
             studentGroups.forEach((studentGroup, index) => {
-                // Query using the input's name attribute or specific id prefix for robustness
                 const studentNameInput = studentGroup.querySelector('input[id^="student-name"]');
+                const specializationInput = studentGroup.querySelector('input[id^="specialization"]'); // NEW FIELD
                 const amountDueInput = studentGroup.querySelector('input[id^="amount-due"]');
                 
                 const studentName = studentNameInput ? studentNameInput.value.trim() : '';
+                const specialization = specializationInput ? specializationInput.value.trim() : ''; // NEW FIELD
                 
-                // Reset border color
+                // Reset border colors
                 if(studentNameInput) studentNameInput.style.borderColor = '#d1d5da'; 
+                if(specializationInput) specializationInput.style.borderColor = '#d1d5da'; 
                 
-                if (!studentName) {
+                if (!studentName || !specialization) {
                     missingFields.push(index + 1);
-                    if (studentNameInput) {
-                        studentNameInput.style.borderColor = 'red'; // Highlight
-                    }
+                    if (studentNameInput && !studentName) studentNameInput.style.borderColor = 'red'; // Highlight missing name
+                    if (specializationInput && !specialization) specializationInput.style.borderColor = 'red'; // Highlight missing specialization
                 } else {
                     // Prepare data for saving
                     const amountDue = amountDueInput.value ? parseFloat(amountDueInput.value) : 0;
-                    studentsToSave.push({ studentName, amountDue });
+                    studentsToSave.push({ studentName, specialization, amountDue });
                 }
             });
 
 
             if (missingFields.length > 0) {
-                showMessage('خطأ في الإدخال', `الرجاء تعبئة اسم الطالب للحقول المرقمة: **${missingFields.join(', ')}**. أو قم بحذف الحقول الفارغة باستخدام زر الحذف (سلة المهملات).`);
+                showMessage('خطأ في الإدخال', `الرجاء تعبئة **اسم الطالب** و **التخصص** للحقول المرقمة: **${missingFields.join(', ')}**. أو قم بحذف الحقول الفارغة باستخدام زر الحذف (سلة المهملات).`);
                 return;
             }
             
             if (studentsToSave.length === 0) {
-                showMessage('خطأ', 'لم يتم العثور على أي طلاب بأسماء صالحة للحفظ.');
+                showMessage('خطأ', 'لم يتم العثور على أي طلاب ببيانات صالحة للحفظ.');
                 return;
             }
 
@@ -773,11 +810,14 @@
                 for (const student of studentsToSave) {
                     savePromises.push(addDoc(studentsCollection(), {
                         studentName: student.studentName,
+                        specialization: student.specialization, // Dynamic Field
+                        amountDue: student.amountDue, // Dynamic Field
+                        
+                        // Static Fields
                         college,
                         level,
                         subject,
                         examDate,
-                        amountDue: student.amountDue
                     }));
                 }
                 
@@ -800,7 +840,7 @@
             } catch (e) {
                 stopLoading();
                 // ONLY show error message; DO NOT clear fields if save fails
-                showMessage('خطأ في الحفظ', `حدث خطأ أثناء إضافة البيانات: **${e.message}**.`);
+                showMessage('خطأ في الحفظ', `حدث خطأ أثناء إضافة البيانات: ${e.message}`);
             }
         }
 
@@ -825,6 +865,9 @@
                     document.getElementById('edit-level').value = data.level;
                     document.getElementById('edit-subject').value = data.subject;
                     document.getElementById('edit-exam-date').value = data.examDate;
+                    
+                    // Populate dynamic fields
+                    document.getElementById('edit-specialization').value = data.specialization || ''; 
                     
                     // Set value for optional field. Use empty string if 0, or value.
                     const amountDueValue = data.amountDue === 0 ? '' : data.amountDue;
@@ -858,11 +901,14 @@
                 
                 const updatedData = {
                     studentName: document.getElementById('edit-student-name').value.trim(),
+                    specialization: document.getElementById('edit-specialization').value.trim(), // Dynamic Field
+                    amountDue: finalAmountDue,
+                    
+                    // Static Fields
                     college: document.getElementById('edit-college').value,
                     level: document.getElementById('edit-level').value,
                     subject: document.getElementById('edit-subject').value.trim(),
                     examDate: document.getElementById('edit-exam-date').value,
-                    amountDue: finalAmountDue,
                 };
 
                 const docRef = doc(db, `artifacts/${appId}/users/${userId}/students`, currentEditingDocId);
@@ -907,7 +953,7 @@
 
                 if (querySnapshot.empty) {
                      studentTableBody.innerHTML = `
-                         <tr><td colspan="7" class="text-center py-4 text-gray-500">لا توجد بيانات طلاب حالياً.</td></tr>
+                         <tr><td colspan="8" class="text-center py-4 text-gray-500">لا توجد بيانات طلاب حالياً.</td></tr>
                      `;
                      return;
                 }
@@ -921,14 +967,16 @@
 
                     const newRow = document.createElement('tr');
                     newRow.classList.add('table-row');
+                    // Note the order change in the table to prioritize the dynamic fields (Name, Specialization, Amount Due)
                     newRow.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${student.studentName}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.college}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.level}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.subject}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.examDate}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.amountDue.toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium action-col-data space-x-2 space-x-reverse">
+                        <td class="px-mobile-sm py-4 whitespace-nowrap text-sm font-medium text-gray-900">${student.studentName}</td>
+                        <td class="px-mobile-sm py-4 whitespace-nowrap text-sm text-gray-500">${student.specialization}</td> <!-- Dynamic Field -->
+                        <td class="px-mobile-sm py-4 whitespace-nowrap text-sm text-gray-500">${student.amountDue.toFixed(2)}</td> <!-- Dynamic Field -->
+                        <td class="px-mobile-sm py-4 whitespace-nowrap text-sm text-gray-500">${student.college}</td>
+                        <td class="px-mobile-sm py-4 whitespace-nowrap text-sm text-gray-500">${student.level}</td>
+                        <td class="px-mobile-sm py-4 whitespace-nowrap text-sm text-gray-500">${student.subject}</td>
+                        <td class="px-mobile-sm py-4 whitespace-nowrap text-sm text-gray-500">${student.examDate}</td>
+                        <td class="px-mobile-sm py-4 whitespace-nowrap text-right text-sm font-medium action-col-data space-x-2 space-x-reverse">
                             <!-- Action buttons with Sana'a Blue accent -->
                             <button onclick="editRow('${docId}')" class="text-sanaa-blue hover:text-sanaa-gold action-button border border-sanaa-blue hover:border-sanaa-gold hover:bg-sanaa-blue/10">تحرير</button>
                             <button onclick="deleteRow('${docId}')" class="text-red-600 hover:text-red-900 action-button border border-red-600">حذف</button>
@@ -939,7 +987,7 @@
             }, (error) => {
                 console.error("Error listening to Firestore:", error);
                 studentTableBody.innerHTML = `
-                    <tr><td colspan="7" class="text-center py-4 text-red-500">حدث خطأ في جلب البيانات: ${error.message}</td></tr>
+                    <tr><td colspan="8" class="text-center py-4 text-red-500">حدث خطأ في جلب البيانات: ${error.message}</td></tr>
                 `;
             });
         }
